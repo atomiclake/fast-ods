@@ -58,6 +58,7 @@ class ODSParserOptions:
     convert_values: bool = False
     take_n_rows: int | None = None
     skip_n_rows: int | None = None
+    skip_empty_rows_at_start: bool = True
     verify_zip: bool = True
 
 #------------------
@@ -80,6 +81,7 @@ class ODSParser():
         convert_values = self.options.convert_values
         skip_n_rows = self.options.skip_n_rows
         take_n_rows = self.options.take_n_rows
+        skip_empty_rows_at_start = self.options.skip_empty_rows_at_start
 
         for event, element in ET.iterparse(ods_contents, events=[TAG_START_EVENT, TAG_END_EVENT]):
             attrib = element.attrib
@@ -90,7 +92,6 @@ class ODSParser():
                 if element.tag != TABLE_TABLE_TAG:
                     continue
 
-                attrib = element.attrib
                 table_name = attrib.get(TABLE_NAME_ATTRIBUTE)
 
                 if isinstance(target_table, int):
@@ -108,12 +109,6 @@ class ODSParser():
             if event == TAG_START_EVENT:
                 continue
 
-            tag = element.tag
-
-            if tag not in PARSED_ELEMENTS:
-                element.clear()
-                continue
-
             # ----------------------
             # Handle ROW
             # ----------------------
@@ -126,6 +121,13 @@ class ODSParser():
 
                     if skip_n_rows and physical_row_count <= skip_n_rows:
                         continue
+
+                    is_row_empty = all(cell in (None, '') for cell in current_row)
+                    
+                    if is_row_empty and skip_empty_rows_at_start:
+                        continue
+
+                    skip_empty_rows_at_start = False
 
                     yield tuple(current_row)
 
