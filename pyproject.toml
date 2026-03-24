@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fast-ods"
+version = "0.1.0"
+description = "Fast, streaming parser for OpenDocument Spreadsheet (.ods) files"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+authors = [
+    { name = "Daniel Teixeira Duarte" }
+]
+
+keywords = ["ods", "spreadsheet", "parser", "streaming", "etl"]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/atomiclake/fast-ods"
+Repository = "https://github.com/atomiclake/fast-ods"
