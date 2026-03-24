@@ -14,15 +14,21 @@ authors = [
     { name = "Daniel Teixeira Duarte" }
 ]
 
-keywords = ["ods", "spreadsheet", "parser", "streaming", "etl"]
+keywords = ["ods",  "opendocument", "spreadsheet", "parser", "streaming", "etl", "zip"]
 
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Topic :: File Formats",
+    "Topic :: Office/Business",
+    "Topic :: Office/Business :: Financial :: Spreadsheet",
     "Topic :: Software Development :: Libraries",
     "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Text Processing :: Markup :: XML",
+    "Topic :: Utilities",
+    "Typing :: Typed"
 ]
 
 dependencies = []
