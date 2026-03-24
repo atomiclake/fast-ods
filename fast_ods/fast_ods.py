@@ -82,6 +82,9 @@ class ODSParser():
         take_n_rows = self.options.take_n_rows
 
         for event, element in ET.iterparse(ods_contents, events=[TAG_START_EVENT, TAG_END_EVENT]):
+            attrib = element.attrib
+            tag = element.tag
+            
             # Locate target table
             if seeking_target_table and event == TAG_START_EVENT:
                 if element.tag != TABLE_TABLE_TAG:
@@ -143,24 +146,18 @@ class ODSParser():
                 # --- Extract value (FAST PATH FIRST) ---
                 str_value = None
 
-                xml_string = attrib.get(STRING_VALUE_ATTRIBUTE)
+                string_value_attribute_text = attrib.get(STRING_VALUE_ATTRIBUTE)
 
-                if xml_string is not None:
-                    str_value = xml_string
+                if string_value_attribute_text is not None:
+                    str_value = string_value_attribute_text
                 else:
                     xml_value = attrib.get(VALUE_ATTRIBUTE)
+
                     if xml_value is not None:
                         str_value = xml_value
+                    # fallback to text:p
                     else:
-                        # fallback to text:p
-                        for child in element:
-                            if child.tag == TEXT_P_TAG:
-                                text = child.text
-                                if text is not None:
-                                    str_value = text
-                                else:
-                                    str_value = "".join(child.itertext())
-                                break
+                        str_value = "".join(element.itertext()) or None
 
                 # --- Optional conversion (fast path) ---
                 if convert_values:
@@ -187,6 +184,7 @@ class ODSParser():
                 for _ in range(repeat):
                     append(str_value)
 
+            if tag in PARSED_ELEMENTS:
                 element.clear()
 
     def parse(self, path: str) -> Iterator[list]:
