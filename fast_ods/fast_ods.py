@@ -189,7 +189,7 @@ class ODSParser():
             if tag in PARSED_ELEMENTS:
                 element.clear()
 
-    def parse(self, path: str) -> Iterator[list]:
+    def parse(self, path: str) -> Iterator[tuple]:
         if not path.endswith('.ods'):
             logger.warning('File does not have the .ods extension')
 

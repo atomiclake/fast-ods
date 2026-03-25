@@ -4,7 +4,9 @@ A fast, streaming parser for OpenDocument Spreadsheet (`.ods`) file.
 
 Designed for efficiency, performance and low memory usage, making it an ideal choice for large files and ETL workflows.
 
-> Requires Python version 3.10 and above
+> Requires Python version 3.10 and above.
+
+> This project is still in alpha (pre-1.0). API and behavior might change drastically until the full release.
 
 ## Features
 
