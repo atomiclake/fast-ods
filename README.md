@@ -1,6 +1,6 @@
 # fast-ods
 
-A fast, streaming parser for OpenDocument Spreadsheet (`.ods`) file.
+A fast, streaming parser for OpenDocument Spreadsheet (`.ods`) files.
 
 Designed for efficiency, performance and low memory usage, making it an ideal choice for large files and ETL workflows.
 
