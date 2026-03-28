@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from io import IOBase
 from logging import getLogger
-from typing import Iterator
+from typing import Collection, Iterator
 from zipfile import ZipFile
 
 import xml.etree.ElementTree as ET
@@ -68,125 +68,139 @@ class ODSParserOptions:
 class ODSParser():
     def __init__(self, options: ODSParserOptions | None = None):
         self.options = options or ODSParserOptions()
-    
-    def _parse_core(self, ods_contents: IOBase, target_table: str | int) -> Iterator[tuple]:
-        seen_tables = 0
-        seeking_target_table = True
-        current_row = []
 
-        physical_row_count = 0
-        expanded_row_count = 0
+    def _parse_table_internal(self, ods_contents: IOBase, table: str | int) -> Iterator[tuple]:
+        if ods_contents is None:
+            raise ValueError("'ods_contents' was null")
+        
+        if not isinstance(table, (int, str)):
+            raise ValueError("'table' must be an int or str")
 
-        # Cache options locally (hot path optimization)
+        # Cached option values
         convert_values = self.options.convert_values
-        skip_n_rows = self.options.skip_n_rows
         take_n_rows = self.options.take_n_rows
+        skip_n_rows = self.options.skip_n_rows
         skip_empty_rows_at_start = self.options.skip_empty_rows_at_start
 
+        # Tracking variables for finding the right table
+        seen_target_table = False
+        number_of_tables_checked = 0
+
+        # Row counting for the take/skip N rows functionality
+        row_count = 0
+        rows_taken = 0
+
+        # Value accumulator for the current row
+        current_row = []
+        current_row_has_value = False
+
         for event, element in ET.iterparse(ods_contents, events=[TAG_START_EVENT, TAG_END_EVENT]):
-            attrib = element.attrib
-            tag = element.tag
-            
-            # Locate target table
-            if seeking_target_table and event == TAG_START_EVENT:
-                if element.tag != TABLE_TABLE_TAG:
+            # Cached element properties
+            iter_element = iter(element)
+            child = next(iter_element, None)
+            second = next(iter_element, None)
+
+            tag_name = element.tag
+            attrib_get_func = element.attrib.get
+
+            # Check if the current table element matches the name or index provided
+            if (not seen_target_table) and tag_name == TABLE_TABLE_TAG and event == TAG_START_EVENT:
+                table_name = attrib_get_func(TABLE_NAME_ATTRIBUTE)
+                
+                if (isinstance(table, str) and table == table_name) or (isinstance(table, int) and table == number_of_tables_checked):
+                    seen_target_table = True
                     continue
 
-                table_name = attrib.get(TABLE_NAME_ATTRIBUTE)
+                number_of_tables_checked += 1
+                element.clear()
 
-                if isinstance(target_table, int):
-                    seeking_target_table = target_table != seen_tables
-                elif isinstance(target_table, str) and table_name:
-                    seeking_target_table = target_table != table_name
-
-                seen_tables += 1
-
-                if seeking_target_table:
-                    element.clear()
-
-                continue
-
+            # Ignore element start events once the table is located
             if event == TAG_START_EVENT:
                 continue
 
-            # ----------------------
-            # Handle ROW
-            # ----------------------
-            if tag == TABLE_ROW_TAG:
-                attrib = element.attrib
-                row_repeat = int(attrib.get(TABLE_NUMBER_ROWS_REPEATED_ATTRIBUTE, 1))
+            # Handle </table:table-row> tag
+            if tag_name == TABLE_ROW_TAG:
+                row_repeat_amount = int(attrib_get_func(TABLE_NUMBER_ROWS_REPEATED_ATTRIBUTE, 1))
+                
+                for _ in range(row_repeat_amount):
+                    # Increment row count by 1
+                    row_count += 1
 
-                for _ in range(row_repeat):
-                    physical_row_count += 1
-
-                    if skip_n_rows and physical_row_count <= skip_n_rows:
+                    # Skip the requested amount of rows
+                    if skip_n_rows and row_count <= skip_n_rows:
                         continue
 
-                    is_row_empty = all(cell in (None, '') for cell in current_row)
-                    
-                    if is_row_empty and skip_empty_rows_at_start:
+                    # Skip the row if it's empty and the "skip_empty_rows_at_start" option is True
+                    if (not current_row_has_value) and skip_empty_rows_at_start:
                         continue
 
+                    # Clear the "skip_empty_rows_at_start" option when the first row with data is found
                     skip_empty_rows_at_start = False
 
                     yield tuple(current_row)
 
-                expanded_row_count += row_repeat
+                    rows_taken += 1
+
+                    # Stop iteration if the targeted number of rows have already been returned
+                    if take_n_rows and rows_taken >= take_n_rows:
+                        return
+
+                current_row_has_value = False
                 current_row = []
 
                 element.clear()
 
-                if take_n_rows and expanded_row_count >= take_n_rows:
-                    return
+            # Handle </table:table-cell> tag
+            if tag_name == TABLE_CELL_TAG:
+                cell_value = None
+                
+                string_value_attribute = attrib_get_func(STRING_VALUE_ATTRIBUTE)
 
-            # ----------------------
-            # Handle CELL (HOT PATH)
-            # ----------------------
-            elif tag == TABLE_CELL_TAG:
-                attrib = element.attrib
-
-                # --- Extract value (FAST PATH FIRST) ---
-                str_value = None
-
-                string_value_attribute_text = attrib.get(STRING_VALUE_ATTRIBUTE)
-
-                if string_value_attribute_text is not None:
-                    str_value = string_value_attribute_text
+                # Try finding the cell value through its' elements
+                if not string_value_attribute is None:
+                    cell_value = string_value_attribute
                 else:
-                    xml_value = attrib.get(VALUE_ATTRIBUTE)
+                    value_attribute = attrib_get_func(VALUE_ATTRIBUTE)
 
-                    if xml_value is not None:
-                        str_value = xml_value
-                    # fallback to text:p
+                    if not value_attribute is None:
+                        cell_value = value_attribute
+
+                if (not cell_value is None) and (not child is None):
+                    # Exactly one child
+                    if second is None:
+                        if child.text and len(child) == 0:
+                            # The text property of the child is defined and there are no elements in 
+                            cell_value = child.text
+                        else:
+                            # The child element has no direct text node, but it contains children (which might have text)
+                            cell_value = "".join(child.itertext())
                     else:
-                        str_value = "".join(element.itertext()) or None
+                        # Multiple children
+                        cell_value = "".join(child.itertext())
 
-                # --- Optional conversion (fast path) ---
-                if convert_values:
-                    value_type = attrib.get(VALUE_TYPE_ATTRIBUTE)
+                # Convert the cell value to the type specified in the cell 'value-type' attribute
+                if (not cell_value is None) and convert_values:
+                    value_type_attribute = attrib_get_func(VALUE_TYPE_ATTRIBUTE)
 
-                    if value_type == "float" or value_type in ("currency", "percentage"):
-                        try:
-                            str_value = float(str_value)
-                        except:
-                            pass
-                    elif value_type == "date":
-                        try:
-                            str_value = datetime.fromisoformat(str_value)
-                        except:
-                            pass
-                    elif value_type == "string":
-                        if str_value is not None:
-                            str_value = str(str_value)
+                    if value_type_attribute in ("float", "currency", "percentage"):
+                        cell_value = float(cell_value)
+                    elif value_type_attribute == "date":
+                        cell_value = datetime.fromisoformat(cell_value)
+                    elif cell_value is not None:
+                        cell_value = str(cell_value)
 
-                # --- Handle column repetition ---
-                repeat = int(attrib.get(TABLE_NUMBER_COLUMNS_REPEATED_ATTRIBUTE, 1))
-                append = current_row.append
+                if not cell_value is None:
+                    current_row_has_value = True
 
-                for _ in range(repeat):
-                    append(str_value)
+                # Append cell values to the current row
+                column_repeat_amount = int(attrib_get_func(TABLE_NUMBER_COLUMNS_REPEATED_ATTRIBUTE, 1))
 
-            if tag in PARSED_ELEMENTS:
+                if column_repeat_amount == 1:
+                    current_row.append(cell_value)
+                else:
+                    current_row.extend([cell_value] * column_repeat_amount)
+            
+            if tag_name in PARSED_ELEMENTS:
                 element.clear()
 
     def parse(self, path: str) -> Iterator[tuple]:
@@ -201,4 +215,4 @@ class ODSParser():
                     logger.warning('ODS file may be corrupted')
 
             with zip_stream.open(CONTENT_XML_FILE_NAME) as content_stream:
-                yield from self._parse_core(content_stream, self.options.table)
+                yield from self._parse_table_internal(content_stream, self.options.table)
