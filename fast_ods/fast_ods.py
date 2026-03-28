@@ -66,8 +66,8 @@ class ODSParserOptions:
 #------------------
 
 class ODSParser():
-    def __init__(self, options: ODSParserOptions | None = None):
-        self.options = options or ODSParserOptions()
+    def __init__(self, default_options: ODSParserOptions | None = None):
+        self.options = default_options or ODSParserOptions()
 
     def _parse_table_internal(self, ods_contents: IOBase, table: str | int) -> Iterator[tuple]:
         if ods_contents is None:
