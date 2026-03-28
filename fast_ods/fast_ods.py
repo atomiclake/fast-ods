@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from io import IOBase
 from logging import getLogger
-from typing import Collection, Iterator
+from typing import Iterator
 from zipfile import ZipFile
 
 import xml.etree.ElementTree as ET
