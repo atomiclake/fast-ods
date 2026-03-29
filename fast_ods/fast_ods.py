@@ -115,7 +115,7 @@ class ODSParser():
                 element.clear()
 
             # Ignore element start events once the table is located
-            if event == TAG_START_EVENT:
+            if event == TAG_START_EVENT or tag_name not in PARSED_ELEMENTS:
                 continue
 
             # Handle </table:table-row> tag
