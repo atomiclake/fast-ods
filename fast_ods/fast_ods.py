@@ -157,15 +157,15 @@ class ODSParser():
                 string_value_attribute = attrib_get_func(STRING_VALUE_ATTRIBUTE)
 
                 # Try finding the cell value through its' elements
-                if not string_value_attribute is None:
+                if string_value_attribute is not None:
                     cell_value = string_value_attribute
                 else:
                     value_attribute = attrib_get_func(VALUE_ATTRIBUTE)
 
-                    if not value_attribute is None:
+                    if value_attribute is not None:
                         cell_value = value_attribute
 
-                if (not cell_value is None) and (not child is None):
+                if cell_value is None and child is not None:
                     # Exactly one child
                     if second is None:
                         if child.text and len(child) == 0:
@@ -179,7 +179,7 @@ class ODSParser():
                         cell_value = "".join(child.itertext())
 
                 # Convert the cell value to the type specified in the cell 'value-type' attribute
-                if (not cell_value is None) and convert_values:
+                if cell_value is not None and convert_values:
                     value_type_attribute = attrib_get_func(VALUE_TYPE_ATTRIBUTE)
 
                     if value_type_attribute in ("float", "currency", "percentage"):
@@ -189,7 +189,7 @@ class ODSParser():
                     elif cell_value is not None:
                         cell_value = str(cell_value)
 
-                if not cell_value is None:
+                if cell_value is not None:
                     current_row_has_value = True
 
                 # Append cell values to the current row
