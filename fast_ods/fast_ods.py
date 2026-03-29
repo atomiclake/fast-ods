@@ -58,7 +58,7 @@ class ODSParserOptions:
     convert_values: bool = False
     take_n_rows: int | None = None
     skip_n_rows: int | None = None
-    skip_empty_rows_at_start: bool = True
+    skip_empty_rows_at_start: bool = False
     verify_zip: bool = True
 
 #------------------
