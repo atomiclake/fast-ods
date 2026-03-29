@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from io import IOBase
 from logging import getLogger
@@ -67,20 +67,25 @@ class ODSParserOptions:
 
 class ODSParser():
     def __init__(self, default_options: ODSParserOptions | None = None):
-        self.options = default_options or ODSParserOptions()
+        self.default_options = default_options or ODSParserOptions()
 
-    def _parse_table_internal(self, ods_contents: IOBase, table: str | int) -> Iterator[tuple]:
+    def _parse_table_internal(self, ods_contents: IOBase, options: ODSParserOptions) -> Iterator[tuple]:
         if ods_contents is None:
             raise ValueError("'ods_contents' was null")
         
+        if options is None:
+            raise ValueError("'options' was null")
+        
+        table = options.table
+
         if not isinstance(table, (int, str)):
             raise ValueError("'table' must be an int or str")
 
         # Cached option values
-        convert_values = self.options.convert_values
-        take_n_rows = self.options.take_n_rows
-        skip_n_rows = self.options.skip_n_rows
-        skip_empty_rows_at_start = self.options.skip_empty_rows_at_start
+        convert_values = options.convert_values
+        take_n_rows = options.take_n_rows
+        skip_n_rows = options.skip_n_rows
+        skip_empty_rows_at_start = options.skip_empty_rows_at_start
 
         # Tracking variables for finding the right table
         seen_target_table = False
@@ -153,7 +158,7 @@ class ODSParser():
             # Handle </table:table-cell> tag
             if tag_name == TABLE_CELL_TAG:
                 cell_value = None
-                
+
                 string_value_attribute = attrib_get_func(STRING_VALUE_ATTRIBUTE)
 
                 # Try finding the cell value through its' elements
@@ -199,20 +204,28 @@ class ODSParser():
                     current_row.append(cell_value)
                 else:
                     current_row.extend([cell_value] * column_repeat_amount)
+
+                # Clear cell tag after extracting the text value
+                element.clear()
             
-            if tag_name in PARSED_ELEMENTS:
+            if tag_name != TEXT_P_TAG:
                 element.clear()
 
-    def parse(self, path: str) -> Iterator[tuple]:
+    def _merge_options(self, overrides: dict) -> ODSParserOptions:
+        return replace(self.default_options, **overrides) if not overrides is None else self.default_options
+
+    def parse(self, path: str, **options) -> Iterator[tuple]:
+        merged_options = self._merge_options(options)
+
         if not path.endswith('.ods'):
             logger.warning('File does not have the .ods extension')
 
         with ZipFile(path, mode='r') as zip_stream:
-            if self.options.verify_zip:
+            if merged_options.verify_zip:
                 bad_file = zip_stream.testzip()
 
                 if bad_file == CONTENT_XML_FILE_NAME:
                     logger.warning('ODS file may be corrupted')
 
             with zip_stream.open(CONTENT_XML_FILE_NAME) as content_stream:
-                yield from self._parse_table_internal(content_stream, self.options.table)
+                yield from self._parse_table_internal(content_stream, merged_options)
